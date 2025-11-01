@@ -35,23 +35,56 @@ export default function PdfMerge() {
   };
 
   const handleConvert = async () => {
-    if (pdfFiles.length < 2) return alert('Please upload at least 2 PDF files to merge!');
-    
-    setIsConverting(true);
-    setDownloadUrl(null);
+  console.log('🚀 1. Function started');
+  
+  if (pdfFiles.length < 2) {
+    alert('Please upload at least 2 PDF files to merge!');
+    return;
+  }
+  
+  setIsConverting(true);
+  setDownloadUrl(null);
 
-    try {
-      // Simulate merge process
-      setTimeout(() => {
-        const dummyUrl = URL.createObjectURL(new Blob(['Merged PDF File'], { type: 'application/pdf' }));
-        setDownloadUrl(dummyUrl);
-        setIsConverting(false);
-      }, 3000);
-    } catch (error: any) {
-      alert('Merge failed: ' + error.message);
-      setIsConverting(false);
+  try {
+    console.log('📦 2. Creating FormData');
+    
+    const formData = new FormData();
+    pdfFiles.forEach((file, index) => {
+      formData.append('files', file);
+      console.log(`📄 Added file: ${file.name}`);
+    });
+
+    console.log('🌐 3. Sending API request to /api/pdf-merge...');
+
+    // Real API call
+    const response = await fetch('/api/pdf-merge', {
+      method: 'POST',
+      body: formData,
+    });
+
+    console.log('✅ 4. API Response Status:', response.status);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.log('❌ API Error:', errorData);
+      throw new Error(errorData.error || 'Merge failed');
     }
-  };
+
+    console.log('📥 5. Getting PDF blob...');
+    const pdfBlob = await response.blob();
+    const url = URL.createObjectURL(pdfBlob);
+    
+    setDownloadUrl(url);
+    console.log('🎉 6. Merge successful! Download URL created');
+    
+  } catch (error: any) {
+    console.error('💥 7. Merge error:', error);
+    alert('Merge failed: ' + error.message);
+  } finally {
+    setIsConverting(false);
+    console.log('🔚 8. Function completed');
+  }
+};
 
   const handleExportAs = async (toolPath: string) => {
     if (pdfFiles.length === 0) return alert('Please upload PDF files first!');
