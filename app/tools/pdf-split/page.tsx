@@ -12,45 +12,144 @@ export default function PdfSplit() {
   const [showExportOptions, setShowExportOptions] = useState(false);
   const [totalPages, setTotalPages] = useState<number | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      
+      // File validation
+      if (file.type !== 'application/pdf') {
+        alert('Please upload a PDF file only.');
+        return;
+      }
+      
+      if (file.size > 50 * 1024 * 1024) {
+        alert('File size too large. Maximum 50MB allowed.');
+        return;
+      }
+
       setPdfFile(file);
       setDownloadUrl(null);
-      // Simulate getting total pages
-      setTotalPages(Math.floor(Math.random() * 50) + 10); // Random 10-60 pages for demo
+      
+      // Get REAL page count using pdf-lib
+      try {
+        // Dynamically import pdf-lib
+        const { PDFDocument } = await import('pdf-lib');
+        const fileBuffer = await file.arrayBuffer();
+        const pdfDoc = await PDFDocument.load(fileBuffer);
+        const realPageCount = pdfDoc.getPageCount();
+        
+        setTotalPages(realPageCount);
+        console.log(`📄 Real page count: ${realPageCount}`);
+      } catch (error) {
+        console.error('Error getting real page count:', error);
+        // Fallback to file size estimate
+        const estimatedPages = Math.max(1, Math.floor(file.size / 50000));
+        setTotalPages(Math.min(estimatedPages, 200));
+        console.log(`📄 Estimated page count: ${estimatedPages}`);
+      }
     }
   };
 
+  const handleChangeFile = () => {
+    // Clear current file
+    setPdfFile(null);
+    setDownloadUrl(null);
+    setTotalPages(null);
+    
+    // Trigger file input click
+    const fileInput = document.getElementById('pdf-upload') as HTMLInputElement;
+    if (fileInput) fileInput.click();
+  };
+
   const handleConvert = async () => {
-    if (!pdfFile) return alert('Please upload a PDF file!');
+    if (!pdfFile) {
+      alert('Please upload a PDF file!');
+      return;
+    }
     
     if (splitMode === 'range' && !pageRanges.trim()) {
-      return alert('Please enter page ranges to split!');
+      alert('Please enter page ranges to split!');
+      return;
     }
 
     if (splitMode === 'every' && (!splitEvery || parseInt(splitEvery) < 1)) {
-      return alert('Please enter a valid number of pages!');
+      alert('Please enter a valid number of pages!');
+      return;
     }
     
     setIsConverting(true);
     setDownloadUrl(null);
 
     try {
-      // Simulate split process
-      setTimeout(() => {
-        const dummyUrl = URL.createObjectURL(new Blob(['Split PDF Files'], { type: 'application/zip' }));
-        setDownloadUrl(dummyUrl);
-        setIsConverting(false);
-      }, 3000);
+      console.log('📦 Creating FormData for split');
+      
+      const formData = new FormData();
+      formData.append('file', pdfFile);
+      formData.append('splitType', splitMode);
+      
+      if (splitMode === 'range') {
+        formData.append('pageRange', pageRanges);
+      } else if (splitMode === 'every') {
+        formData.append('splitEvery', splitEvery);
+      }
+
+      console.log('🌐 Sending API request to /api/pdf-split...');
+
+      // Real API call
+      const response = await fetch('/api/pdf-split', {
+        method: 'POST',
+        body: formData,
+      });
+
+      console.log('✅ API Response Status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log('❌ API Error:', errorData);
+        throw new Error(errorData.error || 'Split failed');
+      }
+
+      console.log('📥 Getting response blob...');
+
+      let responseBlob;
+      try {
+        responseBlob = await response.blob();
+        console.log('✅ Blob received successfully, size:', responseBlob.size);
+      } catch (blobError: any) {
+        console.error('💥 Blob creation failed:', blobError);
+        throw new Error('Failed to create file');
+      }
+
+      // Check if it's ZIP or PDF
+      const contentType = response.headers.get('content-type');
+      console.log('📄 Content-Type:', contentType);
+
+      if (contentType === 'application/zip') {
+        console.log('📦 ZIP file received');
+        const url = URL.createObjectURL(responseBlob);
+        setDownloadUrl(url);
+        console.log('🎉 ZIP file created! Download URL ready');
+      } else {
+        console.log('📄 Other file type received');
+        const url = URL.createObjectURL(responseBlob);
+        setDownloadUrl(url);
+        console.log('🎉 File created! Download URL ready');
+      }
+      
     } catch (error: any) {
+      console.error('💥 Split error:', error);
       alert('Split failed: ' + error.message);
+    } finally {
       setIsConverting(false);
+      console.log('🔚 Split function completed');
     }
   };
 
   const handleExportAs = async (toolPath: string) => {
-    if (!pdfFile) return alert('Please upload a PDF file first!');
+    if (!pdfFile) {
+      alert('Please upload a PDF file first!');
+      return;
+    }
     
     setIsConverting(true);
     setTimeout(() => {
@@ -131,9 +230,17 @@ export default function PdfSplit() {
             <div className="lg:w-1/3">
               <div className="bg-white rounded-xl shadow-lg p-6">
                 
-                {/* File Info Header */}
+                {/* File Info Header with Change Button */}
                 <div className="mb-6 pb-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Selected File</h3>
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-semibold text-gray-800">Selected File</h3>
+                    <button
+                      onClick={handleChangeFile}
+                      className="text-sm text-red-600 hover:text-red-800 font-medium px-3 py-1 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      Change File
+                    </button>
+                  </div>
                   <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                     <div className="flex items-center space-x-2 mb-2">
                       <span className="text-lg">📄</span>
@@ -141,7 +248,7 @@ export default function PdfSplit() {
                     </div>
                     {totalPages && (
                       <div className="text-xs">
-                        Total pages: <strong>{totalPages}</strong>
+                        Total pages: <strong>{totalPages}</strong> • Size: <strong>{(pdfFile.size / (1024 * 1024)).toFixed(2)} MB</strong>
                       </div>
                     )}
                   </div>
@@ -336,38 +443,6 @@ export default function PdfSplit() {
                     </label>
                   </div>
 
-                  {/* Cloud Options Dropdown */}
-                  <div className="relative inline-block">
-                    <button
-                      onClick={() => setShowCloudOptions(!showCloudOptions)}
-                      className="flex items-center text-gray-600 hover:text-gray-800 text-sm"
-                    >
-                      <span>More options</span>
-                      <svg className={`w-4 h-4 ml-1 transition-transform ${showCloudOptions ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-
-                    {showCloudOptions && (
-                      <div className="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                        <div className="py-2">
-                          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
-                            <span className="w-5 mr-3 text-blue-500">📦</span>
-                            Dropbox
-                          </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
-                            <span className="w-5 mr-3 text-green-500">🚀</span>
-                            Google Drive
-                          </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
-                            <span className="w-5 mr-3 text-purple-500">☁️</span>
-                            OneDrive
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
                   <p className="text-sm text-gray-500 mt-4">
                     Split PDF by page ranges or extract specific pages
                   </p>
@@ -389,7 +464,7 @@ export default function PdfSplit() {
                       </svg>
                       <h3 className="text-2xl font-semibold text-green-800 mb-2">Split Successful!</h3>
                       <p className="text-green-600 mb-2">
-                        PDF split into {getOutputFilesCount()} files
+                        All {getOutputFilesCount()} pages extracted successfully! Download ZIP file.
                       </p>
                       
                       {/* Split Details */}
@@ -410,13 +485,13 @@ export default function PdfSplit() {
                       <div className="mb-6">
                         <a
                           href={downloadUrl}
-                          download="split-pdfs.zip"
+                          download="split-pages.zip"
                           className="inline-flex items-center px-8 py-4 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-lg text-lg"
                         >
                           <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
-                          Download Split Files (ZIP)
+                          Download ZIP File ({getOutputFilesCount()} Pages)
                         </a>
                       </div>
 
@@ -464,7 +539,7 @@ export default function PdfSplit() {
                       <h3 className="text-xl font-semibold text-blue-800 mb-2">File Ready for Splitting</h3>
                       <p className="text-blue-600 mb-4">{pdfFile.name}</p>
                       <div className="text-sm text-gray-600 bg-white rounded-lg p-3 inline-block">
-                        Total pages: <strong>{totalPages}</strong>
+                        Total pages: <strong>{totalPages}</strong> • Size: <strong>{(pdfFile.size / (1024 * 1024)).toFixed(2)} MB</strong>
                       </div>
                       <p className="text-gray-600 mt-4">Configure split options and click "Split into {getOutputFilesCount()} Files"</p>
                     </div>
