@@ -21,36 +21,53 @@ export default function PdfCompress() {
     }
   };
 
-  const handleConvert = async () => {
-    if (!pdfFile) return alert('Please upload a PDF file!');
-    
-    setIsConverting(true);
+  const handleChangeFile = () => {
+    // Clear current file
+    setPdfFile(null);
     setDownloadUrl(null);
-
-    try {
-      // Simulate compression process
-      setTimeout(() => {
-        // Calculate compressed size based on compression level
-        let compressionRatio = 1;
-        switch (compressionLevel) {
-          case 'low': compressionRatio = 0.7; break;
-          case 'medium': compressionRatio = 0.5; break;
-          case 'high': compressionRatio = 0.3; break;
-          case 'extreme': compressionRatio = 0.2; break;
-        }
-        
-        const simulatedCompressedSize = Math.floor((originalSize || 0) * compressionRatio);
-        setCompressedSize(simulatedCompressedSize);
-
-        const dummyUrl = URL.createObjectURL(new Blob(['Compressed PDF File'], { type: 'application/pdf' }));
-        setDownloadUrl(dummyUrl);
-        setIsConverting(false);
-      }, 3000);
-    } catch (error: any) {
-      alert('Compression failed: ' + error.message);
-      setIsConverting(false);
-    }
+    setOriginalSize(null);
+    setCompressedSize(null);
+    
+    // Trigger file input click
+    const fileInput = document.getElementById('pdf-upload') as HTMLInputElement;
+    if (fileInput) fileInput.click();
   };
+
+ const handleConvert = async () => {
+  if (!pdfFile) return alert('Please upload a PDF file!');
+  
+  setIsConverting(true);
+  setDownloadUrl(null);
+
+  try {
+    const formData = new FormData();
+    formData.append('file', pdfFile);
+    formData.append('compressionLevel', compressionLevel);
+
+    const response = await fetch('/api/pdf-compress', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Compression failed');
+    }
+
+    const responseBlob = await response.blob();
+    
+    // Calculate actual compressed size
+    setCompressedSize(responseBlob.size);
+    
+    const url = URL.createObjectURL(responseBlob);
+    setDownloadUrl(url);
+    
+  } catch (error: any) {
+    alert('Compression failed: ' + error.message);
+  } finally {
+    setIsConverting(false);
+  }
+};
 
   const handleExportAs = async (toolPath: string) => {
     if (!pdfFile) return alert('Please upload a PDF file first!');
@@ -135,9 +152,17 @@ export default function PdfCompress() {
             <div className="lg:w-1/3">
               <div className="bg-white rounded-xl shadow-lg p-6">
                 
-                {/* File Info Header */}
+                {/* File Info Header with Change Button */}
                 <div className="mb-6 pb-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Selected File</h3>
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-semibold text-gray-800">Selected File</h3>
+                    <button
+                      onClick={handleChangeFile}
+                      className="text-sm text-red-600 hover:text-red-800 font-medium px-3 py-1 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      Change File
+                    </button>
+                  </div>
                   <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                     <div className="flex items-center space-x-2 mb-2">
                       <span className="text-lg">📄</span>
