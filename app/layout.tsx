@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '../components/Header';
 import Link from 'next/link';
+import { Analytics } from '@vercel/analytics/react';  // ✅ YEH LINE ADD KI
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -23,6 +24,7 @@ export default function RootLayout({
         <main>
           {children}
         </main>
+        <Analytics />  {/* ✅ YEH LINE ADD KI */}
         
         {/* Footer - Now available on every page */}
         <footer className="bg-gray-800 text-white py-12">
