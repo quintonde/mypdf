@@ -2,23 +2,22 @@
 import React, { useState } from 'react';
 
 // Configuration constants
-const MAX_FILES = 20;
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-const MAX_TOTAL_SIZE = 500 * 1024 * 1024; // 500MB
+const MAX_FILES = 10;
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB per file
+const MAX_TOTAL_SIZE = 4 * 1024 * 1024; // 4MB total
 
 export default function PdfMerge() {
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [isConverting, setIsConverting] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [showCloudOptions, setShowCloudOptions] = useState(false);
-  const [showExportOptions, setShowExportOptions] = useState(false);
 
-  // ✅ STEP 1: Change File Function Added
+  // ✅ Change File Function
   const handleChangeFile = (index: number) => {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = '.pdf';
-    fileInput.multiple = false; // Single file change
+    fileInput.multiple = false;
     
     fileInput.onchange = (e) => {
       const target = e.target as HTMLInputElement;
@@ -32,7 +31,7 @@ export default function PdfMerge() {
         }
         
         if (newFile.size > MAX_FILE_SIZE) {
-          alert('File size too large. Maximum 100MB allowed.');
+          alert(`File size too large. Maximum ${MAX_FILE_SIZE / (1024 * 1024)}MB allowed.`);
           return;
         }
 
@@ -42,18 +41,17 @@ export default function PdfMerge() {
         );
         
         if (currentTotal + newFile.size > MAX_TOTAL_SIZE) {
-          alert('Total files size would exceed 500MB. Cannot change this file.');
+          alert(`Total files size would exceed ${MAX_TOTAL_SIZE / (1024 * 1024)}MB. Cannot change this file.`);
           return;
         }
 
         const updatedFiles = [...pdfFiles];
         updatedFiles[index] = newFile;
         setPdfFiles(updatedFiles);
-        setDownloadUrl(null); // Reset download URL
+        setDownloadUrl(null);
       }
     };
     
-    // Trigger file selection
     fileInput.click();
   };
 
@@ -81,13 +79,13 @@ export default function PdfMerge() {
 
       // Check individual file size
       if (file.size > MAX_FILE_SIZE) {
-        alert(`"${file.name}" is too large. Maximum file size is 100MB.`);
+        alert(`"${file.name}" is too large. Maximum file size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`);
         continue;
       }
 
       // Check total size
       if (totalSize + file.size > MAX_TOTAL_SIZE) {
-        alert(`Total files size would exceed 500MB. Cannot add "${file.name}".`);
+        alert(`Total files size would exceed ${MAX_TOTAL_SIZE / (1024 * 1024)}MB. Cannot add "${file.name}".`);
         continue;
       }
 
@@ -141,7 +139,6 @@ export default function PdfMerge() {
 
     console.log('🌐 3. Sending API request to /api/pdf-merge...');
 
-    // Real API call
     const response = await fetch('/api/pdf-merge', {
       method: 'POST',
       body: formData,
@@ -170,27 +167,6 @@ export default function PdfMerge() {
     console.log('🔚 8. Function completed');
   }
 };
-
-  const handleExportAs = async (toolPath: string) => {
-    if (pdfFiles.length === 0) return alert('Please upload PDF files first!');
-    
-    setIsConverting(true);
-    setTimeout(() => {
-      alert(`This will redirect to ${toolPath} with your files for processing`);
-      setIsConverting(false);
-    }, 1000);
-  };
-
-  const toolsList = [
-    { name: 'PDF Compress', path: '/tools/pdf-compress', icon: '📦' },
-    { name: 'PDF Split', path: '/tools/pdf-split', icon: '✂️' },
-    { name: 'PDF Protect', path: '/tools/pdf-protect', icon: '🔒' },
-    { name: 'PDF to Word', path: '/tools/pdf-to-word', icon: '📄' },
-    { name: 'PDF to Image', path: '/tools/pdf-to-image', icon: '🖼️' },
-    { name: 'Image to PDF', path: '/tools/image-to-pdf', icon: '📑' },
-    { name: 'PDF Watermark', path: '/tools/pdf-watermark', icon: '💧' },
-    { name: 'PDF Rotate', path: '/tools/pdf-rotate', icon: '🔄' },
-  ];
 
   // Calculate total size for display
   const totalSizeMB = pdfFiles.reduce((sum, file) => sum + file.size, 0) / (1024 * 1024);
@@ -221,7 +197,7 @@ export default function PdfMerge() {
                       Selected Files ({pdfFiles.length}/{MAX_FILES})
                     </h3>
                     <div className="text-sm text-gray-600">
-                      Total: {totalSizeMB.toFixed(2)}MB / 500MB
+                      Total: {totalSizeMB.toFixed(2)}MB / {MAX_TOTAL_SIZE / (1024 * 1024)}MB
                     </div>
                   </div>
                   <p className="text-sm text-gray-600">
@@ -254,12 +230,13 @@ export default function PdfMerge() {
                             </p>
                             <p className="text-xs text-gray-500">
                               {(file.size / (1024 * 1024)).toFixed(2)} MB • {index + 1}/{pdfFiles.length}
+                              {file.size > MAX_FILE_SIZE && " ⚠️ Large file"}
                             </p>
                           </div>
                         </div>
                         
                         <div className="flex items-center space-x-2">
-                          {/* ✅ STEP 2: Change File Button Added */}
+                          {/* Change File Button */}
                           <button
                             onClick={() => handleChangeFile(index)}
                             className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
@@ -331,7 +308,7 @@ export default function PdfMerge() {
                         </svg>
                         <span className="text-sm text-gray-600">Add More PDF Files</span>
                         <span className="text-xs text-gray-400 mt-1">
-                          {MAX_FILES - pdfFiles.length} files remaining • 500MB total limit
+                          {MAX_FILES - pdfFiles.length} files remaining • {MAX_TOTAL_SIZE / (1024 * 1024)}MB total limit • Fast processing guaranteed
                         </span>
                       </div>
                     </label>
@@ -432,7 +409,7 @@ export default function PdfMerge() {
                     Select multiple PDF files to merge
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Maximum {MAX_FILES} files • {MAX_FILE_SIZE / (1024 * 1024)}MB per file • {MAX_TOTAL_SIZE / (1024 * 1024)}MB total
+                    Maximum {MAX_FILES} files • {MAX_FILE_SIZE / (1024 * 1024)}MB per file • {MAX_TOTAL_SIZE / (1024 * 1024)}MB total • Fast processing guaranteed
                   </p>
                 </div>
               </div>
@@ -464,40 +441,6 @@ export default function PdfMerge() {
                           </svg>
                           Download Merged PDF
                         </a>
-                      </div>
-
-                      {/* Export As Button */}
-                      <div className="relative inline-block">
-                        <button
-                          onClick={() => setShowExportOptions(!showExportOptions)}
-                          className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
-                        >
-                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                          </svg>
-                          Export As
-                          <svg className={`w-4 h-4 ml-2 transition-transform ${showExportOptions ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-
-                        {showExportOptions && (
-                          <div className="absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                            <div className="py-2">
-                              <div className="px-4 py-2 text-xs font-semibold text-gray-500 border-b">CONVERT TO</div>
-                              {toolsList.map((tool) => (
-                                <button
-                                  key={tool.name}
-                                  onClick={() => handleExportAs(tool.path)}
-                                  className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 hover:text-red-600 transition-colors border-b border-gray-100 last:border-b-0"
-                                >
-                                  <span className="text-lg mr-3">{tool.icon}</span>
-                                  {tool.name}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>

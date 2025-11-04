@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { PDFDocument } from 'pdf-lib';
 
 // Configuration
-const MAX_FILES = 20;
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-const MAX_TOTAL_SIZE = 500 * 1024 * 1024; // 500MB total
+const MAX_FILES = 10;
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB per file
+const MAX_TOTAL_SIZE = 4 * 1024 * 1024; // 4MB total
 
 export async function POST(request) {
   try {
