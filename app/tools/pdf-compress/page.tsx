@@ -33,51 +33,70 @@ export default function PdfCompress() {
     if (fileInput) fileInput.click();
   };
 
- const handleConvert = async () => {
+const handleConvert = async () => {
   if (!pdfFile) return alert('Please upload a PDF file!');
   
   setIsConverting(true);
   setDownloadUrl(null);
 
   try {
-    const formData = new FormData();
-    formData.append('file', pdfFile);
-    formData.append('compressionLevel', compressionLevel);
-
-    const response = await fetch('/api/pdf-compress', {
-      method: 'POST',
-      body: formData,
+    console.log('🔄 Starting compression...');
+    
+    // Simple compression without PDF.js
+    const { PDFDocument } = await import('pdf-lib');
+    const fileBuffer = await pdfFile.arrayBuffer();
+    
+    // Load PDF
+    const pdfDoc = await PDFDocument.load(fileBuffer);
+    
+    // Quality settings based on compression level
+    const qualitySettings: { [key: string]: number } = {
+      low: 0.9,
+      medium: 0.7, 
+      high: 0.5,
+      extreme: 0.3
+    };
+    
+    const quality = (qualitySettings as any)[compressionLevel] || 0.7;
+    
+    // Create new PDF
+    const newPdf = await PDFDocument.create();
+    
+    // Copy pages with basic optimization
+    const pages = pdfDoc.getPages();
+    for (let i = 0; i < pages.length; i++) {
+      const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
+      newPdf.addPage(copiedPage);
+    }
+    
+    // Save with basic compression
+    const compressedBytes = await newPdf.save({
+      useObjectStreams: true,
+      addDefaultPage: false
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Compression failed');
-    }
-
-    const responseBlob = await response.blob();
+    // Set compressed size
+    const compressedSize = compressedBytes.byteLength;
+    setCompressedSize(compressedSize);
     
-    // Calculate actual compressed size
-    setCompressedSize(responseBlob.size);
+    // Calculate reduction
+    const originalSize = fileBuffer.byteLength;
+    const reduction = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
+    console.log(`📊 Compression: ${reduction}% reduction`);
     
-    const url = URL.createObjectURL(responseBlob);
+    // Create download
+const blob = new Blob([new Uint8Array(compressedBytes)], { type: 'application/pdf' });    const url = URL.createObjectURL(blob);
     setDownloadUrl(url);
     
+    console.log('✅ Compression completed');
+    
   } catch (error: any) {
+    console.error('💥 Error:', error);
     alert('Compression failed: ' + error.message);
   } finally {
     setIsConverting(false);
   }
 };
-
-  const handleExportAs = async (toolPath: string) => {
-    if (!pdfFile) return alert('Please upload a PDF file first!');
-    
-    setIsConverting(true);
-    setTimeout(() => {
-      alert(`This will redirect to ${toolPath} with your file for processing`);
-      setIsConverting(false);
-    }, 1000);
-  };
 
   const toolsList = [
     { name: 'PDF Merge', path: '/tools/pdf-merge', icon: '🔄' },
@@ -89,7 +108,16 @@ export default function PdfCompress() {
     { name: 'PDF Watermark', path: '/tools/pdf-watermark', icon: '💧' },
     { name: 'PDF Rotate', path: '/tools/pdf-rotate', icon: '🔄' },
   ];
-
+// ADD THIS FUNCTION - Error Fix
+const handleExportAs = async (toolPath: string) => {
+  if (!pdfFile) return alert('Please upload a PDF file first!');
+  
+  setIsConverting(true);
+  setTimeout(() => {
+    alert(`This will redirect to ${toolPath} with your file for processing`);
+    setIsConverting(false);
+  }, 1000);
+};
   const compressionOptions = [
     {
       level: 'low',

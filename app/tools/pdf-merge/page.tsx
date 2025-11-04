@@ -1,6 +1,11 @@
 'use client';
 import React, { useState } from 'react';
 
+// Configuration constants
+const MAX_FILES = 20;
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_TOTAL_SIZE = 500 * 1024 * 1024; // 500MB
+
 export default function PdfMerge() {
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [isConverting, setIsConverting] = useState(false);
@@ -8,10 +13,90 @@ export default function PdfMerge() {
   const [showCloudOptions, setShowCloudOptions] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
 
+  // ✅ STEP 1: Change File Function Added
+  const handleChangeFile = (index: number) => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.pdf';
+    fileInput.multiple = false; // Single file change
+    
+    fileInput.onchange = (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target.files && target.files[0]) {
+        const newFile = target.files[0];
+        
+        // Validate new file
+        if (newFile.type !== 'application/pdf') {
+          alert('Please select a PDF file only.');
+          return;
+        }
+        
+        if (newFile.size > MAX_FILE_SIZE) {
+          alert('File size too large. Maximum 100MB allowed.');
+          return;
+        }
+
+        // Calculate total size without current file
+        const currentTotal = pdfFiles.reduce((sum, file, i) => 
+          i === index ? sum : sum + file.size, 0
+        );
+        
+        if (currentTotal + newFile.size > MAX_TOTAL_SIZE) {
+          alert('Total files size would exceed 500MB. Cannot change this file.');
+          return;
+        }
+
+        const updatedFiles = [...pdfFiles];
+        updatedFiles[index] = newFile;
+        setPdfFiles(updatedFiles);
+        setDownloadUrl(null); // Reset download URL
+      }
+    };
+    
+    // Trigger file selection
+    fileInput.click();
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files);
-      setPdfFiles(prev => [...prev, ...newFiles]);
+    if (!e.target.files) return;
+
+    const newFiles = Array.from(e.target.files);
+    
+    // 1. Check total file count
+    if (pdfFiles.length + newFiles.length > MAX_FILES) {
+      alert(`Maximum ${MAX_FILES} files allowed. You already have ${pdfFiles.length} files.`);
+      return;
+    }
+
+    let totalSize = pdfFiles.reduce((sum, file) => sum + file.size, 0);
+    const validFiles: File[] = [];
+
+    // 2. Validate each new file
+    for (const file of newFiles) {
+      // Check file type
+      if (file.type !== 'application/pdf') {
+        alert(`"${file.name}" is not a PDF file. Please upload PDF files only.`);
+        continue;
+      }
+
+      // Check individual file size
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`"${file.name}" is too large. Maximum file size is 100MB.`);
+        continue;
+      }
+
+      // Check total size
+      if (totalSize + file.size > MAX_TOTAL_SIZE) {
+        alert(`Total files size would exceed 500MB. Cannot add "${file.name}".`);
+        continue;
+      }
+
+      validFiles.push(file);
+      totalSize += file.size;
+    }
+
+    if (validFiles.length > 0) {
+      setPdfFiles(prev => [...prev, ...validFiles]);
       setDownloadUrl(null);
     }
   };
@@ -107,6 +192,9 @@ export default function PdfMerge() {
     { name: 'PDF Rotate', path: '/tools/pdf-rotate', icon: '🔄' },
   ];
 
+  // Calculate total size for display
+  const totalSizeMB = pdfFiles.reduce((sum, file) => sum + file.size, 0) / (1024 * 1024);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-4">
       
@@ -128,9 +216,14 @@ export default function PdfMerge() {
                 
                 {/* Files Info Header */}
                 <div className="mb-6 pb-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                    Selected Files ({pdfFiles.length})
-                  </h3>
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-semibold text-gray-800">
+                      Selected Files ({pdfFiles.length}/{MAX_FILES})
+                    </h3>
+                    <div className="text-sm text-gray-600">
+                      Total: {totalSizeMB.toFixed(2)}MB / 500MB
+                    </div>
+                  </div>
                   <p className="text-sm text-gray-600">
                     Drag to reorder files for merging sequence
                   </p>
@@ -160,12 +253,20 @@ export default function PdfMerge() {
                               {file.name}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {(file.size / (1024 * 1024)).toFixed(2)} MB
+                              {(file.size / (1024 * 1024)).toFixed(2)} MB • {index + 1}/{pdfFiles.length}
                             </p>
                           </div>
                         </div>
                         
-                        <div className="flex items-center space-x-1">
+                        <div className="flex items-center space-x-2">
+                          {/* ✅ STEP 2: Change File Button Added */}
+                          <button
+                            onClick={() => handleChangeFile(index)}
+                            className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
+                          >
+                            Change
+                          </button>
+
                           {/* Move Up Button */}
                           <button
                             onClick={() => moveFile(index, 'up')}
@@ -229,6 +330,9 @@ export default function PdfMerge() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                         <span className="text-sm text-gray-600">Add More PDF Files</span>
+                        <span className="text-xs text-gray-400 mt-1">
+                          {MAX_FILES - pdfFiles.length} files remaining • 500MB total limit
+                        </span>
                       </div>
                     </label>
                   </div>
@@ -328,7 +432,7 @@ export default function PdfMerge() {
                     Select multiple PDF files to merge
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Maximum 20 files • 100MB per file
+                    Maximum {MAX_FILES} files • {MAX_FILE_SIZE / (1024 * 1024)}MB per file • {MAX_TOTAL_SIZE / (1024 * 1024)}MB total
                   </p>
                 </div>
               </div>
@@ -409,6 +513,9 @@ export default function PdfMerge() {
                       <p className="text-blue-600 mb-4">
                         Arrange files in desired order using the controls
                       </p>
+                      <div className="text-sm text-gray-600 bg-white rounded-lg p-3 inline-block mb-4">
+                        Total Size: <strong>{totalSizeMB.toFixed(2)}MB</strong> • Files: <strong>{pdfFiles.length}/{MAX_FILES}</strong>
+                      </div>
                       <p className="text-gray-600">
                         Click "Merge PDF Files" to combine your documents
                       </p>
