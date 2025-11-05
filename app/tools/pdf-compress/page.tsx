@@ -7,7 +7,6 @@ export default function PdfCompress() {
   const [isConverting, setIsConverting] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [showCloudOptions, setShowCloudOptions] = useState(false);
-  const [showExportOptions, setShowExportOptions] = useState(false);
   const [originalSize, setOriginalSize] = useState<number | null>(null);
   const [compressedSize, setCompressedSize] = useState<number | null>(null);
 
@@ -33,91 +32,52 @@ export default function PdfCompress() {
     if (fileInput) fileInput.click();
   };
 
-const handleConvert = async () => {
-  if (!pdfFile) return alert('Please upload a PDF file!');
+  const handleConvert = async () => {
+    if (!pdfFile) return alert('Please upload a PDF file!');
+    
+    setIsConverting(true);
+    setDownloadUrl(null);
   
-  setIsConverting(true);
-  setDownloadUrl(null);
-
-  try {
-    console.log('🔄 Starting compression...');
-    
-    // Simple compression without PDF.js
-    const { PDFDocument } = await import('pdf-lib');
-    const fileBuffer = await pdfFile.arrayBuffer();
-    
-    // Load PDF
-    const pdfDoc = await PDFDocument.load(fileBuffer);
-    
-    // Quality settings based on compression level
-    const qualitySettings: { [key: string]: number } = {
-      low: 0.9,
-      medium: 0.7, 
-      high: 0.5,
-      extreme: 0.3
-    };
-    
-    const quality = (qualitySettings as any)[compressionLevel] || 0.7;
-    
-    // Create new PDF
-    const newPdf = await PDFDocument.create();
-    
-    // Copy pages with basic optimization
-    const pages = pdfDoc.getPages();
-    for (let i = 0; i < pages.length; i++) {
-      const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
-      newPdf.addPage(copiedPage);
+    try {
+      console.log('🔄 Starting compression with I Love PDF API...');
+      
+      const formData = new FormData();
+      formData.append('file', pdfFile);
+      formData.append('compression_level', compressionLevel);
+  
+      const response = await fetch('/api/pdf-compress', {
+        method: 'POST',
+        body: formData,
+      });
+  
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Compression failed');
+      }
+  
+      const compressedBlob = await response.blob();
+      const compressedSize = compressedBlob.size;
+      
+      setCompressedSize(compressedSize);
+      
+      // Calculate reduction
+      const reduction = ((originalSize! - compressedSize) / originalSize! * 100).toFixed(1);
+      console.log(`📊 Compression: ${reduction}% reduction`);
+      
+      // Create download URL
+      const url = URL.createObjectURL(compressedBlob);
+      setDownloadUrl(url);
+      
+      console.log('✅ Compression completed');
+      
+    } catch (error: any) {
+      console.error('💥 Error:', error);
+      alert('Compression failed: ' + error.message);
+    } finally {
+      setIsConverting(false);
     }
-    
-    // Save with basic compression
-    const compressedBytes = await newPdf.save({
-      useObjectStreams: true,
-      addDefaultPage: false
-    });
+  };
 
-    // Set compressed size
-    const compressedSize = compressedBytes.byteLength;
-    setCompressedSize(compressedSize);
-    
-    // Calculate reduction
-    const originalSize = fileBuffer.byteLength;
-    const reduction = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
-    console.log(`📊 Compression: ${reduction}% reduction`);
-    
-    // Create download
-const blob = new Blob([new Uint8Array(compressedBytes)], { type: 'application/pdf' });    const url = URL.createObjectURL(blob);
-    setDownloadUrl(url);
-    
-    console.log('✅ Compression completed');
-    
-  } catch (error: any) {
-    console.error('💥 Error:', error);
-    alert('Compression failed: ' + error.message);
-  } finally {
-    setIsConverting(false);
-  }
-};
-
-  const toolsList = [
-    { name: 'PDF Merge', path: '/tools/pdf-merge', icon: '🔄' },
-    { name: 'PDF Split', path: '/tools/pdf-split', icon: '✂️' },
-    { name: 'PDF Protect', path: '/tools/pdf-protect', icon: '🔒' },
-    { name: 'PDF to Word', path: '/tools/pdf-to-word', icon: '📄' },
-    { name: 'PDF to Image', path: '/tools/pdf-to-image', icon: '🖼️' },
-    { name: 'Image to PDF', path: '/tools/image-to-pdf', icon: '📑' },
-    { name: 'PDF Watermark', path: '/tools/pdf-watermark', icon: '💧' },
-    { name: 'PDF Rotate', path: '/tools/pdf-rotate', icon: '🔄' },
-  ];
-// ADD THIS FUNCTION - Error Fix
-const handleExportAs = async (toolPath: string) => {
-  if (!pdfFile) return alert('Please upload a PDF file first!');
-  
-  setIsConverting(true);
-  setTimeout(() => {
-    alert(`This will redirect to ${toolPath} with your file for processing`);
-    setIsConverting(false);
-  }, 1000);
-};
   const compressionOptions = [
     {
       level: 'low',
@@ -377,7 +337,7 @@ const handleExportAs = async (toolPath: string) => {
                     Reduce PDF file size without losing quality
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Maximum file size: 100MB
+                    Maximum file size: 50MB • Powered by I Love PDF API
                   </p>
                 </div>
               </div>
@@ -426,40 +386,6 @@ const handleExportAs = async (toolPath: string) => {
                           </svg>
                           Download Compressed PDF
                         </a>
-                      </div>
-
-                      {/* Export As Button */}
-                      <div className="relative inline-block">
-                        <button
-                          onClick={() => setShowExportOptions(!showExportOptions)}
-                          className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
-                        >
-                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                          </svg>
-                          Export As
-                          <svg className={`w-4 h-4 ml-2 transition-transform ${showExportOptions ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-
-                        {showExportOptions && (
-                          <div className="absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                            <div className="py-2">
-                              <div className="px-4 py-2 text-xs font-semibold text-gray-500 border-b">CONVERT TO</div>
-                              {toolsList.map((tool) => (
-                                <button
-                                  key={tool.name}
-                                  onClick={() => handleExportAs(tool.path)}
-                                  className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 hover:text-red-600 transition-colors border-b border-gray-100 last:border-b-0"
-                                >
-                                  <span className="text-lg mr-3">{tool.icon}</span>
-                                  {tool.name}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
